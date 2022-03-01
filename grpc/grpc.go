@@ -1,7 +1,7 @@
 package grpc
 
 import (
-        "fmt"
+	"fmt"
         "log"
 	"net"
 	"context"
@@ -9,6 +9,7 @@ import (
         "google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 	pb "vatz-plugin-solana/plugin"
+	execute "vatz-plugin-solana/execute"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -35,7 +36,16 @@ func (s *service) Verify(ctx context.Context, in *emptypb.Empty) (*pb.VerifyInfo
 func (s *service) Execute(ctx context.Context, in *pb.ExecuteRequest) (*pb.ExecuteResponse, error) {
 	log.Printf("Execute service")
 
-	return nil, nil
+	//req := in.GetExecuteInfo().
+	//switch (req)
+	//case getHealth:
+	res, err := execute.GetHealth(execute.Testnet)
+
+	return &pb.ExecuteResponse {
+		State:		pb.ExecuteResponse_SUCCESS,
+		Message:	res,
+		ResourceType:	"Go",
+	}, err
 }
 
 func StartServer() {
