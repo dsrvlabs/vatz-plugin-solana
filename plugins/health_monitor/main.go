@@ -2,21 +2,12 @@ package main
 
 import (
 	"fmt"
-//	"encoding/json"
-//	"bytes"
-//	"net/http"
 	"log"
 	"github.com/go-resty/resty/v2"
 	"github.com/dsrvlabs/vatz/sdk"
 	"golang.org/x/net/context"
 	"google.golang.org/protobuf/types/known/structpb"
 )
-
-type Payload struct {
-	Jsonrpc string `json:"jsonrpc"`
-	ID int `json:"id"`
-	Method string `json:"method"`
-}
 
 const (
 	addr = "0.0.0.0"
