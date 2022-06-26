@@ -2,7 +2,9 @@ package main
 
 import (
     "fmt"
-    "log"
+    "github.com/rs/zerolog/log"
+    "flag"
+    "time"
 
     pluginpb "github.com/dsrvlabs/vatz-proto/plugin/v1"
     "github.com/dsrvlabs/vatz/sdk"
@@ -15,7 +17,22 @@ const (
     addr = "0.0.0.0"
     port = 9094
     pluginName = "vatz-plugin-solana-cpu-monitor"
+    defaultUrgent = 95
+    defaultWarning = 90
+    defaultDuration = 0
 )
+
+var (
+    urgent int
+    warning int
+)
+
+func init() {
+    flag.IntVar(&urgent, "urgent", defaultUrgent, "CPU Usage Alert threshold, default 95%")
+    flag.IntVar(&warning, "warning", defaultWarning, "CPU Usage Warning threshold, default 90%")
+
+    flag.Parse()
+}
 
 func main() {
     p := sdk.NewPlugin(pluginName)
@@ -23,22 +40,33 @@ func main() {
 
     ctx := context.Background()
     if err := p.Start(ctx, addr, port); err != nil {
-        fmt.Println("exit")
+        log.Info().Str("module", "plugin").Msg("exit")
     }
 }
 
 func pluginFeature(info, option map[string]*structpb.Value) (sdk.CallResponse, error) {
     // TODO: Fill here.
     ret := sdk.CallResponse{
-        FuncName:   "cpu_monitor",
+        FuncName:   "getCPUUsage",
         Message:    "CPU usage warning!",
         Severity:   pluginpb.SEVERITY_UNKNOWN,
         State:      pluginpb.STATE_NONE,
         AlertTypes: []pluginpb.ALERT_TYPE{pluginpb.ALERT_TYPE_DISCORD},
     }
 
-    util, _ := cpu.Percent(0, false)
-    log.Println("CPU Usage: ", util)
+    util, _ := cpu.Percent(defaultDuration * time.Second, false)
+    log.Debug().Str("module", "plugin").Int("CPU Usage", int(util[0])).Int("Urgent", urgent).Int("Warning", warning).Msg("cpu_monitor")
+
+    if int(util[0]) > urgent {
+        var message string
+        message = fmt.Sprint("Current CPU Usage is ", int(util[0]), "%, over urgent threshold ", urgent, "%")
+        ret = sdk.CallResponse{
+            Message:    message,
+            Severity:	pluginpb.SEVERITY_CRITICAL,
+        }
+
+        log.Warn().Str("module", "plugin").Msg(message)
+    }
 
     return ret, nil
 }
