@@ -3,6 +3,7 @@ package main
 import (
     "fmt"
     "github.com/rs/zerolog/log"
+    "flag"
 
     pluginpb "github.com/dsrvlabs/vatz-proto/plugin/v1"
     "github.com/dsrvlabs/vatz/sdk"
@@ -12,10 +13,28 @@ import (
 )
 
 const (
-    addr = "0.0.0.0"
-    port = 9096
+    defaultAddr = "127.0.0.1"
+    defaultPort = 9096
     pluginName = "vatz-plugin-solana-disk-monitor"
+    defaultUrgent = 95
+    defaultWarning = 90
 )
+
+var (
+    urgent int
+    warning int
+    addr string
+    port int
+)
+
+func init() {
+    flag.StringVar(&addr, "addr", defaultAddr, "Listening address")
+    flag.IntVar(&port, "port", defaultPort, "Listening port")
+    flag.IntVar(&urgent, "urgent", defaultUrgent, "Disk Usage Alert threshold")
+    flag.IntVar(&warning, "warning", defaultWarning, "Disk Usage Warning threshold")
+
+    flag.Parse()
+}
 
 func main() {
     p := sdk.NewPlugin(pluginName)
@@ -23,14 +42,14 @@ func main() {
 
     ctx := context.Background()
     if err := p.Start(ctx, addr, port); err != nil {
-        fmt.Println("exit")
+        log.Info().Str("module", "plugin").Msg("exit")
     }
 }
 
 func pluginFeature(info, option map[string]*structpb.Value) (sdk.CallResponse, error) {
     // TODO: Fill here.
     ret := sdk.CallResponse{
-        FuncName:   "disk_monitor",
+        FuncName:   "getDISKUsage",
         Message:    "Disk usage warning!",
         Severity:   pluginpb.SEVERITY_UNKNOWN,
         State:      pluginpb.STATE_NONE,
@@ -38,10 +57,33 @@ func pluginFeature(info, option map[string]*structpb.Value) (sdk.CallResponse, e
     }
 
     root, _ := disk.Usage("/")
-    log.Info().Str("module", "plugin").Float64("Disk Usage (/):", root.UsedPercent).Msg("disk_monitor")
+    log.Debug().Str("module", "plugin").Int("Disk Usage (/):", int(root.UsedPercent)).Int("Urgent", urgent).Int("Warning", warning).Msg("disk_monitor")
 
     mnt, _ := disk.Usage("/mnt/solana")
-    log.Info().Str("module", "plugin").Float64("Disk Usage (/mnt/solana):", mnt.UsedPercent).Msg("disk_monitor")
+    log.Debug().Str("module", "plugin").Int("Disk Usage (/mnt/solana):", int(mnt.UsedPercent)).Int("Urgent", urgent).Int("Warning", warning).Msg("disk_monitor")
     // TODO: grep mountinfo and check disk usage for each mount point
+
+    if int(root.UsedPercent) > urgent {
+        var message string
+        message = fmt.Sprint("Current Disk Usage (/): ", int(root.UsedPercent), "%, over urgent threshold ", urgent, "%")
+        ret = sdk.CallResponse{
+            Message:	message,
+            Severity:	pluginpb.SEVERITY_CRITICAL,
+        }
+
+        log.Warn().Str("module", "plugin").Msg(message)
+    }
+
+    if int(mnt.UsedPercent) > urgent {
+        var message string
+        message = fmt.Sprint("Current Disk Usage (/mnt/solana): ", int(mnt.UsedPercent), "%, over urgent threshold ", urgent, "%")
+        ret = sdk.CallResponse{
+            Message:	message,
+            Severity:	pluginpb.SEVERITY_CRITICAL,
+        }
+
+        log.Warn().Str("module", "plugin").Msg(message)
+    }
+
     return ret, nil
 }
