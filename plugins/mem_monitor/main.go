@@ -3,6 +3,7 @@ package main
 import (
     "fmt"
     "github.com/rs/zerolog/log"
+    "flag"
 
     pluginpb "github.com/dsrvlabs/vatz-proto/plugin/v1"
     "github.com/dsrvlabs/vatz/sdk"
@@ -12,10 +13,28 @@ import (
 )
 
 const (
-    addr = "0.0.0.0"
-    port = 9095
+    defaultAddr = "127.0.0.1"
+    defaultPort = 9095
     pluginName = "vatz-plugin-solana-mem-monitor"
+    defaultUrgent = 95
+    defaultWarning = 90
 )
+
+var (
+    urgent int
+    warning int
+    addr string
+    port int
+)
+
+func init() {
+    flag.StringVar(&addr, "addr", defaultAddr, "Listening address")
+    flag.IntVar(&port, "port", defaultPort, "Listening port")
+    flag.IntVar(&urgent, "urgent", defaultUrgent, "Mem Usage Alert threshold")
+    flag.IntVar(&warning, "warning", defaultWarning, "Mem Usage Warning threshold")
+
+    flag.Parse()
+}
 
 func main() {
     p := sdk.NewPlugin(pluginName)
@@ -23,14 +42,14 @@ func main() {
 
     ctx := context.Background()
     if err := p.Start(ctx, addr, port); err != nil {
-        fmt.Println("exit")
+        log.Info().Str("module", "plugin").Msg("exit")
     }
 }
 
 func pluginFeature(info, option map[string]*structpb.Value) (sdk.CallResponse, error) {
     // TODO: Fill here.
     ret := sdk.CallResponse{
-        FuncName:   "mem_monitor",
+        FuncName:   "getMEMUsage",
         Message:    "Memory usage warning!",
         Severity:   pluginpb.SEVERITY_UNKNOWN,
         State:      pluginpb.STATE_NONE,
@@ -38,7 +57,18 @@ func pluginFeature(info, option map[string]*structpb.Value) (sdk.CallResponse, e
     }
 
     v, _ := mem.VirtualMemory()
-    log.Info().Str("module", "plugin").Float64("Memory Usage:", v.UsedPercent).Msg("mem_monitor")
+    log.Debug().Str("module", "plugin").Int("Memory Usage", int(v.UsedPercent)).Int("Urgent", urgent).Int("Warning", warning).Msg("mem_monitor")
+
+    if int(v.UsedPercent) > urgent {
+        var message string
+        message = fmt.Sprint("Current Memory Usage is ", int(v.UsedPercent), "%, over urgent threshold ", urgent, "%")
+        ret = sdk.CallResponse{
+            Message:	message,
+            Severity:	pluginpb.SEVERITY_CRITICAL,
+        }
+
+        log.Warn().Str("module", "plugin").Msg(message)
+    }
 
     return ret, nil
 }
