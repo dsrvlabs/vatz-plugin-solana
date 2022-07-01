@@ -14,8 +14,8 @@ import (
 )
 
 const (
-    addr = "0.0.0.0"
-    port = 9094
+    defaultAddr = "127.0.0.1"
+    defaultPort = 9094
     pluginName = "vatz-plugin-solana-cpu-monitor"
     defaultUrgent = 95
     defaultWarning = 90
@@ -25,11 +25,15 @@ const (
 var (
     urgent int
     warning int
+    addr string
+    port int
 )
 
 func init() {
-    flag.IntVar(&urgent, "urgent", defaultUrgent, "CPU Usage Alert threshold, default 95%")
-    flag.IntVar(&warning, "warning", defaultWarning, "CPU Usage Warning threshold, default 90%")
+    flag.StringVar(&addr, "addr", defaultAddr, "Listening address")
+    flag.IntVar(&port, "port", defaultPort, "Listening port")
+    flag.IntVar(&urgent, "urgent", defaultUrgent, "CPU Usage Alert threshold")
+    flag.IntVar(&warning, "warning", defaultWarning, "CPU Usage Warning threshold")
 
     flag.Parse()
 }
