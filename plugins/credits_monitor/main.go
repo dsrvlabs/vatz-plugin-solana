@@ -89,7 +89,7 @@ func pluginFeature(info, option map[string]*structpb.Value) (sdk.CallResponse, e
 		SetHeader("Content-Type", "application/json").
 		SetBody(data).
 		SetResult(&Response{}).
-		Post("http://162.55.243.228:8899")
+		Post("http://localhost:8899")
 
 	if err != nil {
 		log.Fatalf("failed to post message: %v", err)
