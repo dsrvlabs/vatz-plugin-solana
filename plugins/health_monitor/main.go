@@ -2,40 +2,79 @@ package main
 
 import (
 	"fmt"
-	"log"
+	"flag"
+	"github.com/rs/zerolog/log"
 	"github.com/go-resty/resty/v2"
+	pluginpb "github.com/dsrvlabs/vatz-proto/plugin/v1"
 	"github.com/dsrvlabs/vatz/sdk"
 	"golang.org/x/net/context"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
 const (
-	addr = "0.0.0.0"
-	port = 9091
+	defaultAddr = "127.0.0.1"
+	defaultPort = 9091
+	pluginName = "vatz-plugin-solana-health-monitor"
 )
 
+var (
+	addr string
+	port int
+)
+
+func init() {
+	flag.StringVar(&addr, "addr", defaultAddr, "Listening address")
+	flag.IntVar(&port, "port", defaultPort, "Listening port")
+
+	flag.Parse()
+}
+
 func main() {
-	p := sdk.NewPlugin()
+	p := sdk.NewPlugin(pluginName)
 	p.Register(pluginFeature)
 
 	ctx := context.Background()
 	if err := p.Start(ctx, addr, port); err != nil {
-		fmt.Println("exit")
+		log.Info().Str("module", "plugin").Msg("exit")
 	}
 }
 
-func pluginFeature(info, opt map[string]*structpb.Value) error {
+func pluginFeature(info, option map[string]*structpb.Value) (sdk.CallResponse, error) {
 	// TODO: Fill here.
+	ret := sdk.CallResponse{
+		FuncName:	"getHealth",
+		Message:	"Node status is Healthy",
+		Severity:	pluginpb.SEVERITY_UNKNOWN,
+		State:		pluginpb.STATE_NONE,
+		AlertTypes:	[]pluginpb.ALERT_TYPE{pluginpb.ALERT_TYPE_DISCORD},
+	}
 
 	client := resty.New()
 	data := fmt.Sprint("http://127.0.0.1:8899/health")
 
 	resp, err := client.R().Get(data)
 	if err != nil {
-		log.Fatalf("failed to get response: %v", err)
-		return err
-	}
-	log.Println("Response Info: ", resp.String())
+		log.Error().Str("module", "plugin").Msgf("failed to get response: %v", err)
+		ret = sdk.CallResponse{
+			Message:	"failed to get response",
+			State:		pluginpb.STATE_FAILURE,
+		}
 
-	return nil
+		return ret, err
+	}
+
+	if resp.String() != "ok" {
+		var message string
+		message = "Node status is unhealthy " + resp.String()
+		ret = sdk.CallResponse{
+			Message:	message,
+			Severity:	pluginpb.SEVERITY_CRITICAL,
+		}
+
+		log.Warn().Str("module", "plugin").Msg(message)
+	} else {
+		log.Debug().Str("module", "plugin").Msg("Node status is healthy")
+	}
+
+	return ret, nil
 }
