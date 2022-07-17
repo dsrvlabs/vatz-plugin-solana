@@ -1,8 +1,10 @@
 package main
 
 import (
+	"time"
 	"flag"
 	"github.com/rs/zerolog/log"
+	"github.com/robfig/cron/v3"
     pluginpb "github.com/dsrvlabs/vatz-proto/plugin/v1"
     "github.com/dsrvlabs/vatz/sdk"
     "golang.org/x/net/context"
@@ -10,6 +12,9 @@ import (
 	"google.golang.org/grpc"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 )
+
+type arrayFlags []string
+
 
 const (
     defaultAddr = "127.0.0.1"
@@ -20,12 +25,23 @@ const (
 var (
 	addr string
 	port int
+	schedule arrayFlags
 	ctx context.Context
 )
+
+func (i *arrayFlags) String() string {
+	return ""
+}
+
+func (i *arrayFlags) Set(value string) error {
+	*i = append(*i, value)
+	return nil
+}
 
 func init() {
 	flag.StringVar(&addr, "addr", defaultAddr, "Listening address")
 	flag.IntVar(&port, "port", defaultPort, "Listening port")
+	flag.Var(&schedule, "schedule", "Schedule with cron expression")
 
 	flag.Parse()
 }
@@ -34,10 +50,16 @@ func main() {
     p := sdk.NewPlugin(pluginName)
     p.Register(pluginFeature)
 
-
     ctx = context.Background()
 
-	healthCheck("localhost:9090", ctx)
+	c := cron.New(cron.WithLocation(time.UTC))
+	for i := 0; i < len(schedule); i++ {
+		log.Info().Str("module", "plugin").Msgf("%d, %s", i, schedule[i])
+		c.AddFunc(schedule[i], func() { healthCheck("localhost:9090", ctx) })
+	}
+
+	c.Start()
+	//healthCheck("localhost:9090", ctx)
     if err := p.Start(ctx, addr, port); err != nil {
         log.Info().Str("module", "plugin").Msg("exit")
     }
