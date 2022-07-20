@@ -35,6 +35,7 @@ type notificationInfo struct {
 var (
 	addr string
 	port int
+	nodeStatus bool = true
 	schedule arrayFlags
 	dispatchManager	= notification.GetDispatcher()
 	configFile string
@@ -55,7 +56,7 @@ func init() {
 
 	flag.StringVar(&addr, "addr", defaultAddr, "remote address")
 	flag.IntVar(&port, "port", defaultPort, "remote port")
-	flag.Var(&schedule, "schedule", "Schedule with cron expression, use UTC timezone, space separated ex.) \"* * * * *\"")
+	flag.Var(&schedule, "schedule", "Schedule with cron expression, use UTC timezone, space separated ex.) \"0 0 * * *\" (default \"* * * * *\")")
 	flag.StringVar(&configFile, "config", "default.yaml", "config file path")
 	flag.Parse()
 
@@ -69,12 +70,18 @@ func main() {
 
 	n := notificationInfo{DiscordSecret: vatzConfig.NotificationInfo.DiscordSecret}
 	raddr := fmt.Sprint(addr, ":",  port)
+
+	ctx := context.Background()
 	c := cron.New(cron.WithLocation(time.UTC))
 
-	for i := 0; i < len(schedule); i++ {
+	c.AddFunc(schedule[0], func() { heartBeat(raddr, n.DiscordSecret, ctx) })
+	log.Debug().Str("module", "plugin").Msgf("Add cronjob 0, %s", schedule[0])
+
+	for i := 1; i < len(schedule); i++ {
 		log.Debug().Str("module", "plugin").Msgf("Add cronjob %d, %s", i, schedule[i])
-		c.AddFunc(schedule[i], func() { healthCheck(raddr, n.DiscordSecret, context.Background()) })
+		c.AddFunc(schedule[i], func() { scheduledCheck(raddr, n.DiscordSecret, ctx) })
 	}
+
 
 	c.Start()
 
@@ -82,40 +89,68 @@ func main() {
 	}
 }
 
-func healthCheck(address string, webhook string, ctx context.Context) {
-	jsonMessage := notification.ReqMsg{
-		FuncName:	"is_vatz_up",
-		State:		notification.Success,
-		Msg:		"vatz is Alive!!",
-		Severity:	notification.Info,
-		ResourceType:	"vatz_health_checker",
-	}
-
-	log.Info().Str("module", "plugin").Msgf("dial to %v", address)
-	conn, err := grpc.Dial(address, grpc.WithInsecure())
-
-	if err != nil {
-		log.Error().Str("module", "plugin").Msg("dial error")
-	}
-
-	healthClient := healthpb.NewHealthClient(conn)
-	response, err := healthClient.Check(ctx, &healthpb.HealthCheckRequest{})
-
+func heartBeat(address string, webhook string, ctx context.Context) {
+	// used for checking every minute as default
+	response, err := healthCheck(address, ctx)
 	if err != nil {
 		log.Error().Str("module", "plugin").Msg("health check response error")
-		jsonMessage = notification.ReqMsg{
+		jsonMessage := notification.ReqMsg{
+			FuncName:	"is_vatz_up",
 			State:		notification.Faliure,
 			Msg:		"vatz is down !!",
 			Severity:	notification.Critical,
+			ResourceType:	"vatz_health_checker",
+		}
+
+		dispatchManager.SendDiscord(jsonMessage, webhook)
+		log.Error().Str("module", "plugin").Msgf("%v", response)
+		nodeStatus = false
+	} else {
+		log.Info().Str("module", "plugin").Msgf("%v", response)
+		if nodeStatus == false {
+			jsonMessage := notification.ReqMsg{
+				FuncName:	"is_vatz_up",
+				State:		notification.Success,
+				Msg:		"vatz is back !!",
+				Severity:	notification.Info,
+				ResourceType:	"vatz_health_checker",
+			}
+
+			dispatchManager.SendDiscord(jsonMessage, webhook)
+		}
+		nodeStatus = true
+	}
+}
+
+func scheduledCheck(address string, webhook string, ctx context.Context) {
+	// used for checking scheduled cronjob except default
+	response, err := healthCheck(address, ctx)
+	if err == nil {
+		log.Info().Str("module", "plugin").Msg("scheduled health check")
+		jsonMessage := notification.ReqMsg{
+			FuncName:	"is_vatz_up",
+			State:		notification.Success,
+			Msg:		"vatz is Alive!!",
+			Severity:	notification.Info,
+			ResourceType:	"vatz_health_checker",
 		}
 
 		dispatchManager.SendDiscord(jsonMessage, webhook)
 		log.Info().Str("module", "plugin").Msgf("%v", response)
+	}
+}
 
-		return
+func healthCheck(address string, ctx context.Context) (*healthpb.HealthCheckResponse, error) {
+	log.Info().Str("module", "plugin").Msgf("dial to %v", address)
+	conn, err := grpc.Dial(address, grpc.WithInsecure())
+	if err != nil {
+		log.Error().Str("module", "plugin").Msg("dial error")
+		return nil, err
 	}
 
-	dispatchManager.SendDiscord(jsonMessage, webhook)
+	healthClient := healthpb.NewHealthClient(conn)
 
-	log.Info().Str("module", "plugin").Msgf("%v", response)
+	response, err := healthClient.Check(ctx, &healthpb.HealthCheckRequest{})
+
+	return response, err
 }
