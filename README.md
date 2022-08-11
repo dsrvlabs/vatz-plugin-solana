@@ -95,8 +95,8 @@ root@solana-testnet-validator-hetzner ~/vatz/vatz-plugin-solana # tree .
 ```
 
 4. How to run
-use [pm2](https://pm2.keymetrics.io/docs/usage/quick-start/) to run and manage multiple plugins
-add plugin info into [ecosystem.config.js](./ecosystem.config.js)
+- use [pm2](https://pm2.keymetrics.io/docs/usage/quick-start/) to run and manage multiple plugins
+- add plugin info into [ecosystem.config.js](./ecosystem.config.js)
 ```
  # pm2 start ecosystem.config.js
 [PM2][WARN] Applications balance_monitor, cpu_monitor, disk_monitor, health_monitor, mem_monitor, vatz_health_checker not running, starting...
