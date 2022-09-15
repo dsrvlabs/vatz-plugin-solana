@@ -39,6 +39,7 @@ var (
 	schedule arrayFlags
 	dispatchManager	= notification.GetDispatcher()
 	configFile string
+	hostname string
 )
 
 func (i *arrayFlags) String() string {
@@ -71,6 +72,12 @@ func main() {
 	n := notificationInfo{DiscordSecret: vatzConfig.NotificationInfo.DiscordSecret}
 	raddr := fmt.Sprint(addr, ":",  port)
 
+	var err error
+	hostname, err = os.Hostname()
+	if err != nil {
+		log.Fatal().Str("module", "plugin").Msgf("Couldn't get hostname: %v", err)
+	}
+
 	ctx := context.Background()
 	c := cron.New(cron.WithLocation(time.UTC))
 
@@ -94,10 +101,11 @@ func heartBeat(address string, webhook string, ctx context.Context) {
 	response, err := healthCheck(address, ctx)
 	if err != nil {
 		log.Error().Str("module", "plugin").Msg("health check response error")
+		message := fmt.Sprint("[", hostname, "]\n", "vatz is down!!")
 		jsonMessage := notification.ReqMsg{
 			FuncName:	"is_vatz_up",
 			State:		notification.Faliure,
-			Msg:		"vatz is down !!",
+			Msg:		message,
 			Severity:	notification.Critical,
 			ResourceType:	"vatz_health_checker",
 		}
@@ -108,10 +116,11 @@ func heartBeat(address string, webhook string, ctx context.Context) {
 	} else {
 		log.Info().Str("module", "plugin").Msgf("%v", response)
 		if nodeStatus == false {
+			message := fmt.Sprint("[", hostname, "]\n", "vatz is back !!")
 			jsonMessage := notification.ReqMsg{
 				FuncName:	"is_vatz_up",
 				State:		notification.Success,
-				Msg:		"vatz is back !!",
+				Msg:		message,
 				Severity:	notification.Info,
 				ResourceType:	"vatz_health_checker",
 			}
@@ -127,10 +136,11 @@ func scheduledCheck(address string, webhook string, ctx context.Context) {
 	response, err := healthCheck(address, ctx)
 	if err == nil {
 		log.Info().Str("module", "plugin").Msg("scheduled health check")
+		message := fmt.Sprint("[", hostname, "]\n", "vatz is Alive!!")
 		jsonMessage := notification.ReqMsg{
 			FuncName:	"is_vatz_up",
 			State:		notification.Success,
-			Msg:		"vatz is Alive!!",
+			Msg:		message,
 			Severity:	notification.Info,
 			ResourceType:	"vatz_health_checker",
 		}
