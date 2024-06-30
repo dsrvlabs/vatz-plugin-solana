@@ -13,7 +13,7 @@ import (
 
 const (
 	defaultAddr = "127.0.0.1"
-	defaultPort = 9091
+	defaultPort = 10002
 	pluginName = "vatz-plugin-solana-health-monitor"
 )
 
@@ -42,11 +42,10 @@ func main() {
 func pluginFeature(info, option map[string]*structpb.Value) (sdk.CallResponse, error) {
 	// TODO: Fill here.
 	ret := sdk.CallResponse{
-		FuncName:	"getHealth",
+		FuncName:   info["execute_method"].GetStringValue(),
 		Message:	"Node status is Healthy",
 		Severity:	pluginpb.SEVERITY_UNKNOWN,
 		State:		pluginpb.STATE_NONE,
-		AlertTypes:	[]pluginpb.ALERT_TYPE{pluginpb.ALERT_TYPE_DISCORD},
 	}
 
 	client := resty.New()

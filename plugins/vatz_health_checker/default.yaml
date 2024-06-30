@@ -1,6 +1,0 @@
----
-vatz_protocol_info:
-  protocol_identifier: "vatz-health-checker"
-  notification_info:
-    discord_secret: "XXXXX"
-    pager_duty_secret: "YYYYY"
