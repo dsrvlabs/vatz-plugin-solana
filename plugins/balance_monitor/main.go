@@ -74,11 +74,10 @@ func main() {
 func pluginFeature(info, option map[string]*structpb.Value) (sdk.CallResponse, error) {
 	// TODO: Fill here.
 	ret := sdk.CallResponse{
-		FuncName:	"getBalance",
+		FuncName:   info["execute_method"].GetStringValue(),
 		Message:	"SOL Balance for voting fee",
 		Severity:	pluginpb.SEVERITY_UNKNOWN,
 		State:		pluginpb.STATE_NONE,
-		AlertTypes:	[]pluginpb.ALERT_TYPE{pluginpb.ALERT_TYPE_DISCORD},
 	}
 
 	pubkey := getSolanaPubkey()
